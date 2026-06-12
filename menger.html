@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sinfonía Fractal | Esponja de Menger</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+    <style>
+        :root {
+            --primary: #ff1a1a;
+            /* Rojo Fuerte - tema Menger */
+            --primary2: #cc0000;
+            /* Rojo Oscuro */
+            --bg-dark: #050510;
+            --glass: rgba(0, 8, 28, 0.85);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: 'Inter', sans-serif;
+            color: #fff;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 330px;
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 26, 26, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            z-index: 100;
+            box-shadow: 0 10px 40px rgba(255, 26, 26, 0.2), 0 0 80px rgba(204, 0, 0, 0.1);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+            opacity: 0.7;
+            transition: 0.3s;
+        }
+
+        .back-link:hover {
+            opacity: 1;
+            transform: translateX(-5px);
+        }
+
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            color: var(--primary);
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        input[type="range"],
+        input[type="number"] {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(0, 255, 204, 0.2);
+            color: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        input[type="range"] {
+            accent-color: var(--primary);
+        }
+
+        .val-badge {
+            color: var(--primary);
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        #render-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--primary), #0099ff);
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            margin-top: 10px;
+            color: #000;
+        }
+
+        #render-btn:hover {
+            filter: brightness(1.2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 204, 0.4);
+        }
+
+        #render-btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+            color: #666;
+        }
+
+        #export-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #22cc22, #008800);
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            margin-top: 10px;
+            color: #fff;
+        }
+
+        #export-btn:hover {
+            filter: brightness(1.2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(34, 204, 34, 0.4);
+        }
+
+        #export-btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+            color: #666;
+        }
+
+        .math-panel {
+            background: rgba(0, 255, 204, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 20px;
+            border-left: 4px solid var(--primary);
+            font-family: monospace;
+            font-size: 0.8rem;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .math-panel::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .math-panel::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        .math-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+
+        .math-val {
+            color: var(--primary);
+            text-align: right;
+        }
+
+        .math-label {
+            color: #aaa;
+        }
+
+        .data-section {
+            border-top: 1px solid rgba(0, 255, 204, 0.15);
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+
+        .data-section h4 {
+            margin: 0 0 8px 0;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffaa00;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .data-section h4::before {
+            content: '▶';
+            font-size: 0.6rem;
+            transition: 0.2s;
+        }
+
+        .data-section.open h4::before {
+            content: '▼';
+        }
+
+        .data-section .body {
+            display: none;
+        }
+
+        .data-section.open .body {
+            display: block;
+        }
+
+        .formula-box {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: #e0e0e0;
+            font-size: 0.78rem;
+            line-height: 1.6;
+            margin-bottom: 6px;
+        }
+
+        .tag-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .tag {
+            background: rgba(0, 255, 204, 0.1);
+            border: 1px solid rgba(0, 255, 204, 0.3);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 0.72rem;
+            color: var(--primary);
+        }
+
+        .tag.warn {
+            background: rgba(255, 170, 0, 0.1);
+            border-color: rgba(255, 170, 0, 0.4);
+            color: #ffaa00;
+        }
+
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-weight: bold;
+            color: var(--primary);
+            gap: 15px;
+            flex-direction: column;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 255, 204, 0.1);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Botón de pausa circular */
+        #pause-btn {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 26, 26, 0.3);
+            color: var(--primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: 0.3s;
+            z-index: 10;
+            font-size: 0.8rem;
+        }
+
+        #pause-btn:hover {
+            background: rgba(255, 26, 26, 0.2);
+            transform: scale(1.1);
+        }
+
+        .iter-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .iter-input {
+            width: 50px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 26, 26, 0.3);
+            color: var(--primary);
+            border-radius: 4px;
+            padding: 4px;
+            text-align: center;
+            font-weight: bold;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .iter-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(255, 26, 26, 0.3);
+        }
+
+        #security-warning {
+            color: #ff4444;
+            font-size: 0.7rem;
+            margin-top: 4px;
+            font-weight: bold;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Capa de Interfaz y controles de la Esponja -->
+    <div id="ui-panel">
+        <button id="pause-btn" title="Pausar/Reanudar Giro">⏸</button>
+        <a href="index.html" class="back-link">← Volver al Portal</a>
+        <h1>Esponja de Menger</h1>
+
+        <!-- Control de Iteraciones/Profundidad -->
+        <div class="control-group">
+            <div class="iter-container">
+                <label style="margin-bottom: 0; cursor: pointer;" title="Clic para info de seguridad"
+                    onclick="toggleWarning()">Nivel de Recursión (n):</label>
+                <input type="number" id="iter-input" class="iter-input" value="0" min="0" max="5">
+            </div>
+            <div id="security-warning">🔒 No se permite más por seguridad.</div>
+        </div>
+
+        <!-- Control de Escala Global del Cubo -->
+        <div class="control-group">
+            <label>Tamaño Lado (cm)</label>
+            <input type="number" id="size-input" value="100">
+        </div>
+
+        <button id="render-btn">Renderizar Fractal</button>
+
+        <!-- Métricas hiper-precisas en vivo -->
+        <div class="math-panel">
+            <div class="math-row"><span class="math-label">Cubos Totales:</span><span id="math-cubes"
+                    class="math-val">20</span></div>
+            <div class="math-row"><span class="math-label">Volumen Total:</span><span id="math-vol"
+                    class="math-val">0</span></div>
+            <div class="data-section" id="sec-piece">
+                <h4 onclick="toggleSection('sec-piece')">Detalle de Sub-cubos</h4>
+                <div class="body">
+                    <div class="math-row"><span class="math-label">Lado de cada cubito:</span><span id="math-piece-size"
+                            class="math-val">0</span></div>
+                    <div class="math-row"><span class="math-label">Volumen unitario:</span><span id="math-piece-vol"
+                            class="math-val">0</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-dim">
+                <h4 onclick="toggleSection('sec-dim')">Dimensión Fractal (D)</h4>
+                <div class="body">
+                    <div class="formula-box">Dimensión: <strong style="color:var(--primary)">2.7268</strong></div>
+                    <div class="math-row"><span class="math-label">Copias por nivel (N):</span><span
+                            class="math-val">20</span></div>
+                    <div class="math-row"><span class="math-label">Factor de escala (s):</span><span
+                            class="math-val">3</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-ifs">
+                <h4 onclick="toggleSection('sec-ifs')">Función Iterativa (IFS)</h4>
+                <div class="body">
+                    <div class="formula-box">
+                        Cada cubo se divide en 27 piezas iguales (3×3×3).
+                        Se eliminan el cubo del centro y los del centro de cada cara.
+                        Los 20 cubos restantes repiten el mismo proceso en cada nivel.
+                    </div>
+                    <div class="tag-row"><span class="tag">IFS – 20 contracciones</span><span class="tag warn">Factor
+                            1/3 por nivel</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-iter">
+                <h4 onclick="toggleSection('sec-iter')">Nivel de Iteración (n)</h4>
+                <div class="body">
+                    <div class="formula-box">Nivel actual: <strong id="iter-display"
+                            style="color:var(--primary)">0</strong><br>Cubos = 20ⁿ ·· Vol = (20/27)ⁿ × L³</div>
+                    <div class="math-row"><span class="math-label">Recomendado:</span><span class="math-val">n ≤
+                            4</span></div>
+                    <div class="tag-row"><span class="tag warn">n=4 → 160,000 cubos</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-export">
+                <h4 onclick="toggleSection('sec-export')">📥 EXPORTACIÓN 3D (STL)</h4>
+                <div class="body">
+                    <p style="font-size: 0.75rem; color: #aaa; margin-bottom: 8px;">Genera un archivo sólido para
+                        impresión 3D o diseño externo.</p>
+                    <button id="export-btn" style="margin-top: 0;">⬇ Descargar STL</button>
+                </div>
+            </div>
+
+
+
+        </div>
+    </div>
+
+    <!-- Cortina de procesamiento asíncrono -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <span>Calculando Módulos Geomátricos...</span>
+    </div>
+
+    <script>
+        // === CONFIGURACIÓN INICIAL DEL MOTOR WEBGL (THREE.JS) ===
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 20000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 1.0;
+        controls.enableZoom = true;
+        controls.zoomSpeed = 1.0;
+        controls.minDistance = 0;
+        controls.maxDistance = 20000;
+
+        // === SISTEMA DE ILUMINACIÓN GLOBAL VIVA ===
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x333333, 1.2);
+        scene.add(hemiLight);
+
+        const l1 = new THREE.DirectionalLight(0xff4444, 1.8); l1.position.set(200, 300, 200); scene.add(l1);
+        const l2 = new THREE.DirectionalLight(0xff0000, 1.2); l2.position.set(-200, -100, -200); scene.add(l2);
+
+        // Geometría base para InstancedMesh (Un cubo puro 1x1x1)
+        const baseGeo = new THREE.BoxGeometry(1, 1, 1);
+        // Colores VÍVIDOS - Tema ROJO para Menger
+        const CUBE_FACE_COLORS = [
+            [1.0, 0.1, 0.1],    // Rojo Brillante
+            [1.0, 0.0, 0.0],    // Rojo Eléctrico
+            [0.8, 0.0, 0.0],    // Rojo Profundo
+            [0.9, 0.2, 0.2],    // Rojo Claro
+            [0.7, 0.0, 0.0],    // Rojo Oscuro
+            [1.0, 0.3, 0.0],    // Rojo Naranja
+        ];
+        const cubeColorsArr = new Float32Array(24 * 3);
+        for (let f = 0; f < 6; f++) {
+            const c = CUBE_FACE_COLORS[f];
+            for (let v = 0; v < 4; v++) {
+                const i = (f * 4 + v) * 3;
+                cubeColorsArr[i] = c[0]; cubeColorsArr[i + 1] = c[1]; cubeColorsArr[i + 2] = c[2];
+            }
+        }
+        baseGeo.setAttribute('color', new THREE.BufferAttribute(cubeColorsArr, 3));
+        // Material Phong para que se sienta sólido y premium (no translúcido)
+        const mat = new THREE.MeshPhongMaterial({
+            vertexColors: true,
+            flatShading: true,
+            shininess: 100,
+            transparent: false,
+            opacity: 1
+        });
+        let instancedMesh;
+
+        const dom = {
+            iterInput: document.getElementById('iter-input'),
+            warning: document.getElementById('security-warning'),
+            size: document.getElementById('size-input'),
+            btn: document.getElementById('render-btn'),
+            exportBtn: document.getElementById('export-btn'),
+            pauseBtn: document.getElementById('pause-btn'),
+            cubes: document.getElementById('math-cubes'),
+            vol: document.getElementById('math-vol'),
+            pieceSize: document.getElementById('math-piece-size'),
+            pieceVol: document.getElementById('math-piece-vol'),
+            overlay: document.getElementById('loading-overlay')
+        };
+
+        // ==========================================
+        // CONFIGURACIÓN DE SEGURIDAD (MAX_ITER)
+        // Modifica este valor para permitir más niveles 
+        // de recursión en el renderizado 3D.
+        // ==========================================
+        const MAX_ITER = 7;
+
+        // Formateador inteligente para no redondear a cero absoluto
+        function formatSmart(num, digits = 3) {
+            if (num === 0) return "0";
+            if (num < 0.001) return num.toExponential(digits);
+            return num.toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: digits
+            });
+        }
+
+        // Algoritmo matemático visual
+        function updateMath() {
+            const n = parseInt(dom.iterInput.value) || 0;
+            const s = parseFloat(dom.size.value) || 100;
+
+            const count = Math.pow(20, n);
+            dom.cubes.innerText = count.toLocaleString();
+
+            const V0 = Math.pow(s, 3);
+            const totalVol = V0 * Math.pow(20 / 27, n);
+            dom.vol.innerText = formatSmart(totalVol, 1) + " cm³";
+
+            // Detalle por cubito individual
+            const side_n = s / Math.pow(3, n);
+            const vol_n = Math.pow(side_n, 3);
+            dom.pieceSize.innerText = formatSmart(side_n, 2) + " cm";
+            dom.pieceVol.innerText = formatSmart(vol_n, 4) + " cm³";
+
+            const iterDisp = document.getElementById('iter-display');
+            if (iterDisp) iterDisp.innerText = n;
+        }
+
+        // === CÁLCULO ASÍNCRONO SIN BLOQUEOS ===
+        function generateMengerCubes(maxLevel, L) {
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const totalCubes = Math.pow(20, maxLevel);
+                    const dummy = new THREE.Object3D();
+                    const buffer = new Float32Array(totalCubes * 16);
+                    let idx = 0;
+
+                    function build(cx, cy, cz, size, level) {
+                        if (level === 0) {
+                            dummy.position.set(cx, cy, cz);
+                            dummy.scale.set(size, size, size);
+                            dummy.updateMatrix();
+                            dummy.matrix.toArray(buffer, idx * 16);
+                            idx++;
+                            return;
+                        }
+
+                        const third = size / 3;
+                        const offsets = [-third, 0, third];
+
+                        for (let z of offsets) {
+                            for (let y of offsets) {
+                                for (let x of offsets) {
+                                    // REGLA CRUCIAL DE MENGER:
+                                    let zeros = (x === 0 ? 1 : 0) + (y === 0 ? 1 : 0) + (z === 0 ? 1 : 0);
+                                    if (zeros >= 2) continue; // Descarga el cubo central y los de las caras
+                                    build(cx + x, cy + y, cz + z, third, level - 1);
+                                }
+                            }
+                        }
+                    }
+
+                    build(0, 0, 0, L, maxLevel);
+                    resolve({ buffer, totalCubes });
+                }, 50); // Pequeño respiro para que el UI renderice el css spinner
+            });
+        }
+
+        // Ejecutor interactivo
+        dom.btn.onclick = async () => {
+            const n = parseInt(dom.iterInput.value) || 0;
+            const s = parseFloat(dom.size.value) || 100;
+
+            if (n > MAX_ITER) {
+                dom.warning.style.display = 'block';
+                return;
+            }
+            dom.warning.style.display = 'none';
+
+            dom.btn.disabled = true;
+            dom.overlay.style.display = 'flex';
+
+            // Distanciamos la cámara en diagonal para ver todo el cubo
+            camera.position.set(s * 1.2, s * 1.0, s * 1.5);
+            controls.target.set(0, 0, 0);
+
+            // Generar geometría sin bloquear la UI
+            const data = await generateMengerCubes(n, s);
+
+            // Autolimpieza de GPU RAM
+            if (instancedMesh) {
+                scene.remove(instancedMesh);
+                instancedMesh.geometry.dispose();
+            }
+
+            // Tecnología de Instanciado Masivo
+            instancedMesh = new THREE.InstancedMesh(baseGeo, mat, data.totalCubes);
+            instancedMesh.frustumCulled = false; // Ignorar culled, asegura visibilidad
+
+            for (let i = 0; i < data.totalCubes; i++) {
+                const mat4 = new THREE.Matrix4().fromArray(data.buffer, i * 16);
+                instancedMesh.setMatrixAt(i, mat4);
+            }
+
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            scene.add(instancedMesh);
+
+            dom.overlay.style.display = 'none';
+            dom.btn.disabled = false;
+        };
+
+        dom.exportBtn.onclick = () => {
+            const n = parseInt(dom.iterInput.value) || 0;
+            if (n > 4) {
+                if (!confirm("⚠️ Nivel " + n + " generará un archivo STL gigante y tardará mucho en procesarse. ¿Deseas continuar?")) return;
+            }
+
+            if (!instancedMesh) {
+                alert("Primero debes renderizar el fractal.");
+                return;
+            }
+
+            const prevText = dom.overlay.querySelector('span').innerText;
+            dom.overlay.style.display = 'flex';
+            dom.overlay.querySelector('span').innerText = 'Extrayendo mallas y generando STL (procesando)...';
+
+            setTimeout(() => {
+                try {
+                    const exporter = new THREE.STLExporter();
+                    const geometries = [];
+                    const matrix = new THREE.Matrix4();
+                    const tempGeo = baseGeo.clone();
+
+                    // Eliminar atributo de color para evitar errores en BufferGeometryUtils si hay incompatibilidades
+                    if (tempGeo.attributes.color) {
+                        delete tempGeo.attributes.color;
+                    }
+
+                    for (let i = 0; i < instancedMesh.count; i++) {
+                        instancedMesh.getMatrixAt(i, matrix);
+                        const geo = tempGeo.clone();
+                        geo.applyMatrix4(matrix);
+                        geometries.push(geo);
+                    }
+
+                    const mergedGeo = THREE.BufferGeometryUtils.mergeBufferGeometries(geometries, false);
+                    const mergedMesh = new THREE.Mesh(mergedGeo, new THREE.MeshBasicMaterial());
+
+                    const stlString = exporter.parse(mergedMesh);
+
+                    const blob = new Blob([stlString], { type: 'text/plain' });
+                    const link = document.createElement('a');
+                    link.style.display = 'none';
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `menger_sponge_n${n}.stl`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } catch (e) {
+                    alert("Error al exportar: " + e.message);
+                }
+
+                dom.overlay.style.display = 'none';
+                dom.overlay.querySelector('span').innerText = prevText;
+            }, 100);
+        };
+
+        dom.pauseBtn.onclick = () => {
+            controls.autoRotate = !controls.autoRotate;
+            dom.pauseBtn.innerText = controls.autoRotate ? '⏸' : '▶';
+        };
+
+        // Sincronización y Validación de de recursión
+        dom.iterInput.oninput = () => {
+            updateMath();
+        };
+
+        function toggleWarning() {
+            const isVisible = dom.warning.style.display === 'block';
+            dom.warning.style.display = isVisible ? 'none' : 'block';
+        }
+
+        dom.size.oninput = updateMath;
+
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
+
+        function toggleSection(id) {
+            document.getElementById(id).classList.toggle('open');
+        }
+
+        updateMath();
+        animate();
+        dom.btn.click();
+    </script>
+</body>
+
+</html>

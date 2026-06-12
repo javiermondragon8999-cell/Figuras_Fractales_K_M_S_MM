@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sinfonía Fractal | Tetraedro de Sierpinski</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+    <style>
+        /* Diseño oscuro visual de cristal (Glassmorphism) */
+        :root {
+            --primary: #ffcc00;
+            /* Amarillo Oro - tema Sierpinski */
+            --primary2: #ff5500;
+            /* Naranja Vibrante */
+            --bg-dark: #050510;
+            --glass: rgba(20, 10, 0, 0.85);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: 'Inter', sans-serif;
+            color: #fff;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 340px;
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 204, 0, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            z-index: 100;
+            box-shadow: 0 10px 40px rgba(255, 204, 0, 0.2), 0 0 80px rgba(255, 85, 0, 0.1);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+            opacity: 0.7;
+            transition: 0.3s;
+        }
+
+        .back-link:hover {
+            opacity: 1;
+            transform: translateX(-5px);
+        }
+
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            color: var(--primary);
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        input[type="range"],
+        input[type="number"] {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 0, 255, 0.2);
+            color: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        input[type="range"] {
+            accent-color: var(--primary);
+        }
+
+        .val-badge {
+            color: var(--primary);
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        #render-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--primary), var(--primary2));
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            margin-top: 10px;
+            color: #000;
+        }
+
+        #render-btn:hover {
+            filter: brightness(1.2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 0, 255, 0.4);
+        }
+
+        #render-btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+            color: #666;
+        }
+
+        #export-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #22cc22, #008800);
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            margin-top: 10px;
+            color: #fff;
+        }
+
+        #export-btn:hover {
+            filter: brightness(1.2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(34, 204, 34, 0.4);
+        }
+
+        #export-btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+            color: #666;
+        }
+
+        /* Panel con datos matemáticos vivos en pantalla */
+        .math-panel {
+            background: rgba(255, 204, 0, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 20px;
+            border-left: 4px solid var(--primary);
+            font-family: monospace;
+            font-size: 0.8rem;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .math-panel::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .math-panel::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        .math-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+
+        .math-val {
+            color: var(--primary);
+            text-align: right;
+        }
+
+        .math-label {
+            color: #aaa;
+        }
+
+        .data-section {
+            border-top: 1px solid rgba(255, 204, 0, 0.15);
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+
+        .data-section h4 {
+            margin: 0 0 8px 0;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffaa00;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .data-section h4::before {
+            content: '▶';
+            font-size: 0.6rem;
+            transition: 0.2s;
+        }
+
+        .data-section.open h4::before {
+            content: '▼';
+        }
+
+        .data-section .body {
+            display: none;
+        }
+
+        .data-section.open .body {
+            display: block;
+        }
+
+        .formula-box {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: #e0e0e0;
+            font-size: 0.78rem;
+            line-height: 1.6;
+            margin-bottom: 6px;
+        }
+
+        .tag-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .tag {
+            background: rgba(255, 204, 0, 0.1);
+            border: 1px solid rgba(255, 204, 0, 0.3);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 0.72rem;
+            color: var(--primary);
+        }
+
+        .tag.warn {
+            background: rgba(255, 170, 0, 0.1);
+            border-color: rgba(255, 170, 0, 0.4);
+            color: #ffaa00;
+        }
+
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-weight: bold;
+            color: var(--primary);
+            gap: 15px;
+            flex-direction: column;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 204, 0, 0.1);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Botón de pausa circular */
+        #pause-btn {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 204, 0, 0.3);
+            color: var(--primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: 0.3s;
+            z-index: 10;
+            font-size: 0.8rem;
+        }
+
+        #pause-btn:hover {
+            background: rgba(255, 204, 0, 0.2);
+            transform: scale(1.1);
+        }
+
+        .iter-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .iter-input {
+            width: 50px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 204, 0, 0.3);
+            color: var(--primary);
+            border-radius: 4px;
+            padding: 4px;
+            text-align: center;
+            font-weight: bold;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .iter-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
+        }
+
+        #security-warning {
+            color: #ff4444;
+            font-size: 0.7rem;
+            margin-top: 4px;
+            font-weight: bold;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- CONTROLES GENERALES DE USUARIO -->
+    <div id="ui-panel">
+        <button id="pause-btn" title="Pausar/Reanudar Giro">⏸</button>
+        <a href="index.html" class="back-link">← Volver al Portal</a>
+        <h1>Pirámide de Sierpinski</h1>
+
+        <div class="control-group">
+            <div class="iter-container">
+                <label style="margin-bottom: 0; cursor: pointer;" title="Clic para info de seguridad"
+                    onclick="toggleWarning()">Nivel de Recursión (n):</label>
+                <input type="number" id="iter-input" class="iter-input" value="0" min="0" max="12">
+            </div>
+            <div id="security-warning">🔒 No se permite más por seguridad.</div>
+        </div>
+
+        <div class="control-group">
+            <label>Tamaño Arista (cm):</label>
+            <input type="number" id="size-input" value="100">
+        </div>
+
+        <button id="render-btn">Refinar Fractal</button>
+
+        <div class="math-panel">
+            <div class="math-row"><span class="math-label">Tetraedros Totales:</span><span id="math-count"
+                    class="math-val">1</span></div>
+            <div class="math-row"><span class="math-label">Volumen Total:</span><span id="math-vol"
+                    class="math-val">0</span></div>
+            <div class="data-section" id="sec-piece">
+                <h4 onclick="toggleSection('sec-piece')">Detalle de Sub-tetraedros</h4>
+                <div class="body">
+                    <div class="math-row"><span class="math-label">Arista de cada pieza:</span><span
+                            id="math-piece-size" class="math-val">0</span></div>
+                    <div class="math-row"><span class="math-label">Volumen unitario:</span><span id="math-piece-vol"
+                            class="math-val">0</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-dim">
+                <h4 onclick="toggleSection('sec-dim')">Dimensión Fractal (D)</h4>
+                <div class="body">
+                    <div class="formula-box">Dimensión: <strong style="color:var(--primary)">2.0000</strong></div>
+                    <div class="math-row"><span class="math-label">Copias por nivel (N):</span><span
+                            class="math-val">4</span></div>
+                    <div class="math-row"><span class="math-label">Factor de escala (s):</span><span
+                            class="math-val">2</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-ifs">
+                <h4 onclick="toggleSection('sec-ifs')">Función Iterativa (IFS)</h4>
+                <div class="body">
+                    <div class="formula-box">
+                        Cada tetraedro se divide en 4 copias más pequeñas,
+                        una en cada vértice. El espacio central queda vacío.
+                        El proceso se repite en cada copia a la mitad del tamaño.
+                    </div>
+                    <div class="tag-row"><span class="tag">IFS – 4 contracciones</span><span class="tag warn">Factor 1/2
+                            por nivel</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-iter">
+                <h4 onclick="toggleSection('sec-iter')">Nivel de Iteración (n)</h4>
+                <div class="body">
+                    <div class="formula-box">Nivel actual: <strong id="iter-display"
+                            style="color:var(--primary)">0</strong><br>Tetraedros = 4ⁿ ·· Vol = (1/2)ⁿ × V0</div>
+                    <div class="math-row"><span class="math-label">Recomendado:</span><span class="math-val">n ≤
+                            7</span></div>
+                    <div class="tag-row"><span class="tag warn">n=8 → 65,536 tetraedros</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-export">
+                <h4 onclick="toggleSection('sec-export')">📥 EXPORTACIÓN 3D (STL)</h4>
+                <div class="body">
+                    <p style="font-size: 0.75rem; color: #aaa; margin-bottom: 8px;">Genera un archivo sólido para impresión 3D o diseño externo.</p>
+                    <button id="export-btn" style="margin-top: 0;">⬇ Descargar STL</button>
+                </div>
+            </div>
+
+
+
+        </div>
+    </div>
+
+    <!-- PANTALLA ANIMADA DE CARGA GEOMÉTRICA -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <span>Ensamblando Pirámides Físicas...</span>
+    </div>
+
+    <script>
+        // === CONFIGURACIONES CENTRALES DEL MOTOR THREE.JS ===
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 20000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true }); // Activa el alisado de bordes
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Control dinámico de órbita para ver desde cualquier ángulo
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.8;
+        controls.enableZoom = true;
+        controls.zoomSpeed = 1.0;
+        controls.minDistance = 0;
+        controls.maxDistance = 20000;
+
+        // == ILUMINACIÓN VIVA Y BRILLANTE ==
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+        scene.add(hemiLight);
+
+        const l1 = new THREE.DirectionalLight(0xffcc00, 1.8); l1.position.set(200, 300, 200); scene.add(l1);
+        const l2 = new THREE.DirectionalLight(0xff3300, 1.2); l2.position.set(-200, -100, -200); scene.add(l2);
+        // Geometría principal: Tetrahedron no-indexado (4 caras × 3 vértices = 12)
+        const baseGeo = new THREE.TetrahedronGeometry(1).toNonIndexed();
+        baseGeo.computeVertexNormals();
+        // Colores VÍVIDOS - Tema AMARILLO/ROJO para Sierpinski
+        const TETRA_FACE_COLORS = [
+            [1.0, 0.9, 0.0],    // Amarillo Oro
+            [1.0, 0.1, 0.1],    // Rojo Intenso
+            [1.0, 0.5, 0.0],    // Naranja Vibrante
+            [1.0, 1.0, 0.3],    // Amarillo Limón
+        ];
+        const tetraColorsArr = new Float32Array(12 * 3);
+        for (let f = 0; f < 4; f++) {
+            const c = TETRA_FACE_COLORS[f];
+            for (let v = 0; v < 3; v++) {
+                const i = (f * 3 + v) * 3;
+                tetraColorsArr[i] = c[0]; tetraColorsArr[i + 1] = c[1]; tetraColorsArr[i + 2] = c[2];
+            }
+        }
+        baseGeo.setAttribute('color', new THREE.BufferAttribute(tetraColorsArr, 3));
+        // Material Phong para máxima solidez visual
+        const mat = new THREE.MeshPhongMaterial({
+            vertexColors: true,
+            flatShading: true,
+            shininess: 80,
+            transparent: false,
+            opacity: 1
+        });
+        let instancedMesh; // Usaremos 1 solo objeto simulando miles
+
+        const dom = {
+            iterInput: document.getElementById('iter-input'),
+            warning: document.getElementById('security-warning'),
+            size: document.getElementById('size-input'),
+            btn: document.getElementById('render-btn'),
+            exportBtn: document.getElementById('export-btn'),
+            pauseBtn: document.getElementById('pause-btn'),
+            count: document.getElementById('math-count'),
+            vol: document.getElementById('math-vol'),
+            pieceSize: document.getElementById('math-piece-size'),
+            pieceVol: document.getElementById('math-piece-vol'),
+            overlay: document.getElementById('loading-overlay')
+        };
+
+        // ==========================================
+        // CONFIGURACIÓN DE SEGURIDAD (MAX_ITER)
+        // Modifica este valor para permitir más niveles 
+        // de recursión en el renderizado 3D.
+        // ==========================================
+        const MAX_ITER = 14;
+
+        // Formateador inteligente para no redondear a cero absoluto
+        function formatSmart(num, digits = 3) {
+            if (num === 0) return "0";
+            if (num < 0.001) return num.toExponential(digits);
+            return num.toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: digits
+            });
+        }
+
+        // Panel Matemático: usa L como longitud de ARISTA del tetraedro base
+        function updateMath() {
+            const n = parseInt(dom.iterInput.value) || 0;
+            // L = longitud de arista ingresada por el usuario
+            const L = parseFloat(dom.size.value) || 100;
+
+            // Número total de tetraedros en nivel n
+            const count = Math.pow(4, n);
+            dom.count.innerText = count.toLocaleString();
+
+            // Volumen de tetraedro regular con arista L: V = L³√2 / 12
+            const V0 = Math.pow(L, 3) * Math.sqrt(2) / 12;
+            // A nivel n, cada tetraedro es (1/2)^n veces el original, con 4^n copias
+            // Volumen total = V0 * (1/2)^n  (vol decrece a mitad cada nivel)
+            const V_n = V0 * Math.pow(1 / 2, n);
+            dom.vol.innerText = formatSmart(V_n, 1) + " cm³";
+
+            // Detalle por pieza individual
+            const edge_n = L / Math.pow(2, n);
+            const vol_n = Math.pow(edge_n, 3) * Math.sqrt(2) / 12;
+            dom.pieceSize.innerText = formatSmart(edge_n, 2) + " cm";
+            dom.pieceVol.innerText = formatSmart(vol_n, 4) + " cm³";
+
+            const iterDisp = document.getElementById('iter-display');
+            if (iterDisp) iterDisp.innerText = n;
+        }
+
+        // === GENERADOR FRACTAL SINCRONO DIRECTO ASÍNCRONO ===
+        function generateSierpinski(maxLevel, L) {
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const count = Math.pow(4, maxLevel);
+                    const buffer = new Float32Array(count * 16);
+                    let idx = 0;
+                    const dummy = new THREE.Object3D();
+
+                    // Vectores que definen los 4 vértices perfectos de un Tetraedro Platónico de Radio 1
+                    // Usar exactamente esto garantiza que los triángulos se toquen perfectamente por las esquinas
+                    const SQ3 = Math.sqrt(3);
+                    const TETRA_VERTS = [
+                        { x: 1 / SQ3, y: 1 / SQ3, z: 1 / SQ3 },
+                        { x: 1 / SQ3, y: -1 / SQ3, z: -1 / SQ3 },
+                        { x: -1 / SQ3, y: 1 / SQ3, z: -1 / SQ3 },
+                        { x: -1 / SQ3, y: -1 / SQ3, z: 1 / SQ3 }
+                    ];
+
+                    function build(x, y, z, size, level) {
+                        if (level === 0) {
+                            dummy.position.set(x, y, z);
+                            dummy.scale.set(size, size, size); // El size actúa como Radio
+                            dummy.updateMatrix();
+                            dummy.matrix.toArray(buffer, idx * 16);
+                            idx++;
+                            return;
+                        }
+
+                        // Cada pirámide se sub-divide en 4, posicionadas a la MITAD de la distancia 
+                        // respecto al centro en dirección a cada esquina.
+                        const ns = size / 2;
+
+                        for (let v of TETRA_VERTS) {
+                            build(
+                                x + v.x * size * 0.5,
+                                y + v.y * size * 0.5,
+                                z + v.z * size * 0.5,
+                                ns,
+                                level - 1
+                            );
+                        }
+                    }
+
+                    build(0, 0, 0, L, maxLevel);
+                    resolve({ buffer, count });
+                }, 50); // Timeout para permitir renderizar spinner
+            });
+        }
+
+        // Manejador del botón de renderizado
+        dom.btn.onclick = async () => {
+            const n = parseInt(dom.iterInput.value) || 0;
+            const sVisual = 100; // Tamaño fijo para el renderizado
+
+            if (n > MAX_ITER) {
+                dom.warning.style.display = 'block';
+                return;
+            }
+            dom.warning.style.display = 'none';
+
+            dom.btn.disabled = true;
+            dom.overlay.style.display = 'flex';
+
+            // Ángulo de visualización constante
+            camera.position.set(sVisual * 1.6, sVisual * 1.2, sVisual * 1.6);
+            controls.target.set(0, 0, 0);
+
+            // Iniciar fábrica matemática con tamaño base 100
+            const data = await generateSierpinski(n, sVisual);
+
+            // Prevención de pérdida en caché
+            if (instancedMesh) { scene.remove(instancedMesh); instancedMesh.geometry.dispose(); }
+
+            // Módulo super-escalado InstancedMesh
+            instancedMesh = new THREE.InstancedMesh(baseGeo, mat, data.count);
+            instancedMesh.frustumCulled = false; // ESTO EVITA QUE EL MODELO DESAPAREZCA (CORRECCIÓN CRÍTICA)
+
+            for (let i = 0; i < data.count; i++) {
+                const mat4 = new THREE.Matrix4().fromArray(data.buffer, i * 16);
+                instancedMesh.setMatrixAt(i, mat4);
+            }
+
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            scene.add(instancedMesh);
+
+            dom.overlay.style.display = 'none';
+            dom.btn.disabled = false;
+        };
+
+        dom.exportBtn.onclick = () => {
+            const n = parseInt(dom.iterInput.value) || 0;
+            if (n > 7) {
+                if (!confirm("⚠️ Nivel " + n + " generará un archivo STL muy grande y tardará en procesarse. ¿Deseas continuar?")) return;
+            }
+            
+            if (!instancedMesh) {
+                alert("Primero debes renderizar el fractal.");
+                return;
+            }
+            
+            const prevText = dom.overlay.querySelector('span').innerText;
+            dom.overlay.style.display = 'flex';
+            dom.overlay.querySelector('span').innerText = 'Ensamblando geometría para impresión 3D...';
+            
+            setTimeout(() => {
+                try {
+                    const exporter = new THREE.STLExporter();
+                    const geometries = [];
+                    const matrix = new THREE.Matrix4();
+                    const tempGeo = baseGeo.clone();
+                    
+                    if (tempGeo.attributes.color) {
+                        delete tempGeo.attributes.color;
+                    }
+                    
+                    for (let i = 0; i < instancedMesh.count; i++) {
+                        instancedMesh.getMatrixAt(i, matrix);
+                        const geo = tempGeo.clone();
+                        geo.applyMatrix4(matrix);
+                        geometries.push(geo);
+                    }
+                    
+                    const mergedGeo = THREE.BufferGeometryUtils.mergeBufferGeometries(geometries, false);
+                    const mergedMesh = new THREE.Mesh(mergedGeo, new THREE.MeshBasicMaterial());
+                    
+                    const stlString = exporter.parse(mergedMesh);
+                    
+                    const blob = new Blob([stlString], { type: 'text/plain' });
+                    const link = document.createElement('a');
+                    link.style.display = 'none';
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `sierpinski_tetra_n${n}.stl`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } catch (e) {
+                    alert("Error al exportar: " + e.message);
+                }
+
+                dom.overlay.style.display = 'none';
+                dom.overlay.querySelector('span').innerText = prevText;
+            }, 100);
+        };
+
+        dom.pauseBtn.onclick = () => {
+            controls.autoRotate = !controls.autoRotate;
+            dom.pauseBtn.innerText = controls.autoRotate ? '⏸' : '▶';
+        };
+
+        // Sincronización y Validación de de recursión
+        dom.iterInput.oninput = () => {
+            updateMath();
+        };
+
+        function toggleWarning() {
+            const isVisible = dom.warning.style.display === 'block';
+            dom.warning.style.display = isVisible ? 'none' : 'block';
+        }
+
+        dom.size.oninput = updateMath;
+
+        // Bucle vital
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
+
+        function toggleSection(id) {
+            document.getElementById(id).classList.toggle('open');
+        }
+
+        updateMath();
+        animate();
+        dom.btn.click();
+    </script>
+</body>
+
+</html>

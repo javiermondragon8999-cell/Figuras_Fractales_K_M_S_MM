@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sinfonía Fractal | Koch 3D — Tetraedros Apilados</title>
+    <meta name="description"
+        content="Visualización 3D interactiva del fractal de Koch construido mediante tetraedros apilados. Explora el crecimiento fractal de nivel 0 a 4 con animación paso a paso.">
+    <!-- Three.js r128, OrbitControls y STLExporter -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
+    <style>
+        :root {
+            --primary: #0044ff;
+            /* Azul Fuerte - tema Koch */
+            --primary2: #0022cc;
+            /* Azul Oscuro */
+            --bg-dark: #020208;
+            --glass: rgba(0, 10, 25, 0.88);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: 'Inter', sans-serif;
+            color: #fff;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 330px;
+            background: var(--glass);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(0, 68, 255, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            z-index: 100;
+            box-shadow: 0 10px 40px rgba(0, 68, 255, 0.15), 0 0 80px rgba(0, 34, 204, 0.08);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+            opacity: 0.7;
+            transition: 0.3s;
+        }
+
+        .back-link:hover {
+            opacity: 1;
+            transform: translateX(-5px);
+        }
+
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            color: var(--primary);
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        input[type="range"],
+        input[type="number"] {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 170, 0, 0.2);
+            color: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        input[type="range"] {
+            accent-color: var(--primary);
+        }
+
+        .val-badge {
+            color: var(--primary);
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        #render-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--primary), #ff6600);
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            margin-top: 10px;
+            color: #000;
+        }
+
+        #render-btn:hover {
+            filter: brightness(1.2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 170, 0, 0.4);
+        }
+
+        #render-btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+            color: #666;
+        }
+
+        #export-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #22cc22, #008800);
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            margin-top: 10px;
+            color: #fff;
+        }
+
+        #export-btn:hover {
+            filter: brightness(1.2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(34, 204, 34, 0.4);
+        }
+
+        #export-btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+            color: #666;
+        }
+
+        .math-panel {
+            background: rgba(255, 170, 0, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 20px;
+            border-left: 4px solid var(--primary);
+            font-family: monospace;
+            font-size: 0.8rem;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .math-panel::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .math-panel::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        .math-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+
+        .math-val {
+            color: var(--primary);
+            text-align: right;
+        }
+
+        .math-label {
+            color: #aaa;
+        }
+
+        .data-section {
+            border-top: 1px solid rgba(255, 170, 0, 0.15);
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+
+        .data-section h4 {
+            margin: 0 0 8px 0;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffaa00;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .data-section h4::before {
+            content: '▶';
+            font-size: 0.6rem;
+            transition: 0.2s;
+        }
+
+        .data-section.open h4::before {
+            content: '▼';
+        }
+
+        .data-section .body {
+            display: none;
+        }
+
+        .data-section.open .body {
+            display: block;
+        }
+
+        .formula-box {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: #e0e0e0;
+            font-size: 0.78rem;
+            line-height: 1.6;
+            margin-bottom: 6px;
+        }
+
+        .tag-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .tag {
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 0.72rem;
+            color: var(--primary);
+        }
+
+        .tag.warn {
+            background: rgba(255, 80, 0, 0.1);
+            border-color: rgba(255, 80, 0, 0.4);
+            color: #ff6600;
+        }
+
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-weight: bold;
+            color: var(--primary);
+            gap: 15px;
+            flex-direction: column;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 170, 0, 0.1);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Botón de pausa circular */
+        #pause-btn {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(0, 68, 255, 0.3);
+            color: var(--primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: 0.3s;
+            z-index: 10;
+            font-size: 0.8rem;
+        }
+
+        #pause-btn:hover {
+            background: rgba(0, 68, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .iter-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .iter-input {
+            width: 50px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 68, 255, 0.3);
+            color: var(--primary);
+            border-radius: 4px;
+            padding: 4px;
+            text-align: center;
+            font-weight: bold;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .iter-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(0, 68, 255, 0.3);
+        }
+
+        #security-warning {
+            color: #ff4444;
+            font-size: 0.7rem;
+            margin-top: 4px;
+            font-weight: bold;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Capa de Interfaz y controles del Koch 3D -->
+    <div id="ui-panel">
+        <button id="pause-btn" title="Pausar/Reanudar Giro">⏸</button>
+        <a href="index.html" class="back-link">← Volver al Portal</a>
+        <h1>Copo de Koch</h1>
+
+        <!-- Control de Iteraciones/Profundidad -->
+        <div class="control-group">
+            <div class="iter-container">
+                <label style="margin-bottom: 0; cursor: pointer;" title="Clic para info de seguridad"
+                    onclick="toggleWarning()">Nivel de Recursión (n):</label>
+                <input type="number" id="iter-input" class="iter-input" value="0" min="0" max="11">
+            </div>
+            <div id="security-warning">🔒 No se permite más por seguridad.</div>
+        </div>
+
+        <!-- Control de Tamaño Base -->
+        <div class="control-group">
+            <label>Tamaño Arista (cm)</label>
+            <input type="number" id="size-input" value="100">
+        </div>
+
+        <button id="render-btn">Renderizar Fractal</button>
+
+        <!-- Métricas en vivo -->
+        <div class="math-panel">
+            <div class="math-row"><span class="math-label">Tetraedros Totales:</span><span id="math-count"
+                    class="math-val">1</span></div>
+            <div class="math-row"><span class="math-label">Volumen Total:</span><span id="math-vol"
+                    class="math-val">0</span></div>
+            <div class="data-section" id="sec-piece">
+                <h4 onclick="toggleSection('sec-piece')">Detalle de Nuevas Piezas</h4>
+                <div class="body">
+                    <div class="math-row"><span class="math-label">Cuenta en nivel n:</span><span id="math-level-count"
+                            class="math-val">1</span></div>
+                    <div class="math-row"><span class="math-label">Arista de piezas n:</span><span id="math-piece-size"
+                            class="math-val">0</span></div>
+                    <div class="math-row"><span class="math-label">Volumen unitario n:</span><span id="math-piece-vol"
+                            class="math-val">0</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-dim">
+                <h4 onclick="toggleSection('sec-dim')">Dimensión Fractal (D)</h4>
+                <div class="body">
+                    <div class="formula-box">Dimensión: <strong style="color:var(--primary)">1.2619</strong></div>
+                    <div class="math-row"><span class="math-label">Copias por nivel (N):</span><span
+                            class="math-val">4</span></div>
+                    <div class="math-row"><span class="math-label">Factor de escala (s):</span><span
+                            class="math-val">3</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-ifs">
+                <h4 onclick="toggleSection('sec-ifs')">Función Iterativa (IFS)</h4>
+                <div class="body">
+                    <div class="formula-box">
+                        Sobre cada cara visible de un tetraedro crece uno nuevo,
+                        3 veces más pequeño y apoyado directamente sobre ella.
+                        El proceso se repite en cada tetraedro hijo generado.
+                    </div>
+                    <div class="tag-row"><span class="tag">IFS – 4 contracciones</span><span class="tag warn">Factor 1/3
+                            por nivel</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-iter">
+                <h4 onclick="toggleSection('sec-iter')">Nivel de Iteración (n)</h4>
+                <div class="body">
+                    <div class="formula-box">Nivel actual: <strong id="iter-display"
+                            style="color:var(--primary)">0</strong><br>Total = 2·3ⁿ − 1 ·· En nivel k = 4·3^(k−1)</div>
+                    <div class="math-row"><span class="math-label">Recomendado:</span><span class="math-val">n ≤
+                            8</span></div>
+                    <div class="tag-row"><span class="tag warn">n=10 → ~118,097 tetraedros</span></div>
+                </div>
+            </div>
+
+            <div class="data-section" id="sec-export">
+                <h4 onclick="toggleSection('sec-export')">📥 EXPORTACIÓN 3D (STL)</h4>
+                <div class="body">
+                    <p style="font-size: 0.75rem; color: #aaa; margin-bottom: 8px;">Genera un archivo sólido para impresión 3D o diseño externo.</p>
+                    <button id="export-btn" style="margin-top: 0;">⬇ Descargar STL</button>
+                </div>
+            </div>
+
+
+
+        </div>
+    </div>
+
+    <!-- Cortina de procesamiento asíncrono -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <span>Construyendo Tetraedros Koch...</span>
+    </div>
+
+    <script>
+        // === CONSTANTES MATEMÁTICAS DEL FRACTAL ===
+        // n=0 → total=1
+        // n=1 → total=5  (1 + 4)
+        // n=2 → total=17 (1 + 4 + 12)
+        // n=3 → total=53 (1 + 4 + 12 + 36)
+        // n=4 → total=161(1 + 4 + 12 + 36 + 108)
+        // Cada nivel k ≥ 1 añade 4·3^(k-1) tetraedros
+        // ────────────────────────────────────────────────────
+
+        function countAtLevel(k) {
+            if (k === 0) return 1;
+            return 4 * Math.pow(3, k - 1);
+        }
+
+        function totalTetra(n) {
+            let t = 0;
+            for (let k = 0; k <= n; k++) t += countAtLevel(k);
+            return t; // = 2·3^n − 1
+        }
+
+        // === CONFIGURACIÓN INICIAL DEL MOTOR WEBGL (THREE.JS) ===
+        const scene = new THREE.Scene();
+        // Fondo oscuro pero sin niebla para evitar el efecto de transparencia/desvanecimiento
+        scene.background = new THREE.Color(0x020208);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 20000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.8;
+        controls.enableZoom = true;
+        controls.zoomSpeed = 2.0;
+        controls.minDistance = 0;
+        controls.maxDistance = 20000;
+
+        // === SISTEMA DE ILUMINACIÓN ===
+        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+        scene.add(hemiLight);
+
+        const l1 = new THREE.DirectionalLight(0x00aaff, 1.5); l1.position.set(200, 400, 200); scene.add(l1);
+        const l2 = new THREE.DirectionalLight(0x4400ff, 1.2); l2.position.set(-200, -100, -300); scene.add(l2);
+        const pointLight = new THREE.PointLight(0x00ffff, 1.0, 1000);
+        pointLight.position.set(0, 200, 0);
+        scene.add(pointLight);
+
+        // Material compartido: MeshPhongMaterial para máxima solidez visual (REPARA TRANSLUCIDEZ)
+        const mat = new THREE.MeshPhongMaterial({
+            vertexColors: true,
+            flatShading: true,
+            shininess: 90,
+            transparent: false,
+            opacity: 1.0,
+            // DoubleSide: evita el problema de winding invertido en tetraedros rotados
+            // (especialmente el de la base que apunta hacia abajo).
+            // El Z-fighting ya se resuelve con excludeBase, no con culling.
+            side: THREE.DoubleSide,
+            depthWrite: true,
+            depthTest: true
+        });
+
+        const BASE_SIZE = 100;
+        let meshGroups = [];
+
+        const dom = {
+            iterInput: document.getElementById('iter-input'),
+            warning: document.getElementById('security-warning'),
+            size: document.getElementById('size-input'),
+            btn: document.getElementById('render-btn'),
+            exportBtn: document.getElementById('export-btn'),
+            pauseBtn: document.getElementById('pause-btn'),
+            count: document.getElementById('math-count'),
+            levelCount: document.getElementById('math-level-count'),
+            vol: document.getElementById('math-vol'),
+            pieceSize: document.getElementById('math-piece-size'),
+            pieceVol: document.getElementById('math-piece-vol'),
+            overlay: document.getElementById('loading-overlay')
+        };
+
+        // ==========================================
+        // CONFIGURACIÓN DE SEGURIDAD (MAX_ITER)
+        // Modifica este valor para permitir más niveles 
+        // de recursión en el renderizado 3D.
+        // ==========================================
+        const MAX_ITER = 13;
+
+        // Formateador inteligente
+        function formatSmart(num, digits = 3) {
+            if (num === 0) return "0";
+            if (num < 0.001) return num.toExponential(digits);
+            return num.toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: digits
+            });
+        }
+
+        // === ALGORITMO MATEMÁTICO DE UI ===
+        function updateMath() {
+            const n = parseInt(dom.iterInput.value) || 0;
+            const s = parseFloat(dom.size.value) || 100;
+
+            const tt = totalTetra(n);
+            dom.count.innerText = tt.toLocaleString();
+            dom.levelCount.innerText = countAtLevel(n).toLocaleString();
+
+            // Volumen relativo sumado
+            let volRel = 0;
+            for (let k = 0; k <= n; k++) {
+                volRel += countAtLevel(k) * Math.pow(1 / 27, k);
+            }
+            const V0 = (Math.sqrt(2) / 12) * Math.pow(s, 3);
+            const Vn = V0 * volRel;
+            dom.vol.innerText = formatSmart(Vn, 1) + " cm³";
+
+            // Detalle por pieza nueva en nivel n
+            const edge_n = s / Math.pow(3, n);
+            const vol_n = (Math.sqrt(2) / 12) * Math.pow(edge_n, 3);
+            dom.pieceSize.innerText = formatSmart(edge_n, 2) + " cm";
+            dom.pieceVol.innerText = formatSmart(vol_n, 4) + " cm³";
+
+            const iterDisp = document.getElementById('iter-display');
+            if (iterDisp) iterDisp.innerText = n;
+        }
+
+        // ── Geometría auxiliar: construye un tetraedro regular ──
+        function buildTetrahedron(center, a, orientation, excludeBase = false) {
+            const h = a * Math.sqrt(2 / 3);
+            const R = a / Math.sqrt(3);
+
+            const baseVerts = [];
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2 - Math.PI / 6;
+                baseVerts.push(new THREE.Vector3(R * Math.cos(angle), 0, R * Math.sin(angle)));
+            }
+            const apex = new THREE.Vector3(0, h, 0);
+
+            if (orientation) {
+                baseVerts.forEach(v => v.applyQuaternion(orientation));
+                apex.applyQuaternion(orientation);
+            }
+            baseVerts.forEach(v => v.add(center));
+            apex.add(center);
+
+            const B0 = baseVerts[0], B1 = baseVerts[1], B2 = baseVerts[2];
+            const P = apex;
+
+            let posArray = [];
+            let colorArray = [];
+
+            // Colores VÍVIDOS - Tema AZUL FUERTE para Koch
+            const snowBlue = [
+                [0.2, 0.4, 1.0],   // C0: Azul Claro
+                [0.0, 0.2, 1.0],   // C1: Azul Vibrante
+                [0.0, 0.1, 0.8],   // C2: Azul Profundo
+                [0.1, 0.3, 0.9],   // C3: Azul Medio
+            ];
+
+            // --- CORRECCIÓN DE WINDING ORDER (Normale hacia afuera) ---
+            // Solo añadimos la base (Cara 0) si no está excluida
+            if (!excludeBase) {
+                // B0, B2, B1 es Horario visto desde arriba -> Anti-horario desde ABAJO (OK)
+                posArray.push(B0.x, B0.y, B0.z, B2.x, B2.y, B2.z, B1.x, B1.y, B1.z);
+                colorArray.push(...snowBlue[0], ...snowBlue[0], ...snowBlue[0]);
+            }
+
+            // Caras laterales (winding original — DoubleSide se ocupa de ambas orientaciones)
+            posArray.push(B0.x, B0.y, B0.z, B1.x, B1.y, B1.z, P.x, P.y, P.z);
+            colorArray.push(...snowBlue[1], ...snowBlue[1], ...snowBlue[1]);
+
+            posArray.push(B1.x, B1.y, B1.z, B2.x, B2.y, B2.z, P.x, P.y, P.z);
+            colorArray.push(...snowBlue[2], ...snowBlue[2], ...snowBlue[2]);
+
+            posArray.push(B2.x, B2.y, B2.z, B0.x, B0.y, B0.z, P.x, P.y, P.z);
+            colorArray.push(...snowBlue[3], ...snowBlue[3], ...snowBlue[3]);
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(posArray, 3));
+            geo.setAttribute('color', new THREE.Float32BufferAttribute(colorArray, 3));
+            geo.computeVertexNormals();
+            return geo;
+        }
+
+        // ── Caras expuestas de un tetraedro (para colocar hijos) ──
+        function getExposedFaces(center, a, orientation, isRoot = false) {
+            const h = a * Math.sqrt(2 / 3);
+            const R = a / Math.sqrt(3);
+
+            const baseVerts = [];
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2 - Math.PI / 6;
+                baseVerts.push(new THREE.Vector3(R * Math.cos(angle), 0, R * Math.sin(angle)));
+            }
+            const apex = new THREE.Vector3(0, h, 0);
+
+            if (orientation) {
+                baseVerts.forEach(v => v.applyQuaternion(orientation));
+                apex.applyQuaternion(orientation);
+            }
+            baseVerts.forEach(v => v.add(center));
+            apex.add(center);
+
+            const B = baseVerts, P = apex;
+            const faces = [
+                { verts: [B[0], B[2], B[1]], contact: true },
+                { verts: [B[0], B[1], P], contact: false },
+                { verts: [B[1], B[2], P], contact: false },
+                { verts: [B[2], B[0], P], contact: false },
+            ];
+
+            return faces
+                .filter(f => isRoot || !f.contact)
+                .map(({ verts }) => {
+                    const [A, Bv, C] = verts;
+                    const centroid = new THREE.Vector3().addVectors(A, Bv).add(C).multiplyScalar(1 / 3);
+                    const edge1 = new THREE.Vector3().subVectors(Bv, A);
+                    const edge2 = new THREE.Vector3().subVectors(C, A);
+                    const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
+                    // Usamos el centroide geométrico real del tetraedro (promedio de sus 4 vértices)
+                    // como referencia para determinar si la normal apunta hacia afuera.
+                    // Antes se usaba 'center' (centro de la base), lo cual daba toFace≈0
+                    // para la cara base, dejando la normal mal orientada (hacia adentro).
+                    const tetCentroid = B[0].clone().add(B[1]).add(B[2]).add(P).multiplyScalar(0.25);
+                    const toFace = centroid.clone().sub(tetCentroid);
+                    if (toFace.dot(normal) < 0) normal.negate();
+                    const yAxis = normal.clone();
+                    const xAxis = edge1.clone().normalize();
+                    const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
+                    const mat4 = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
+                    const childQuat = new THREE.Quaternion().setFromRotationMatrix(mat4);
+                    return { centroid, normal, childQuat };
+                });
+        }
+
+        // === CONSTRUCCIÓN DEL FRACTAL ===
+        function buildFractal(n, baseSize) {
+            // Limpiar escena previa
+            meshGroups.forEach(g => {
+                scene.remove(g);
+                g.traverse(c => { if (c.isMesh) { c.geometry.dispose(); c.material.dispose(); } });
+            });
+            meshGroups = [];
+
+            const rootCenter = new THREE.Vector3(0, -baseSize * Math.sqrt(2 / 3) * 0.5, 0);
+            const rootQuat = new THREE.Quaternion();
+            let parentFaceData = [{ center: rootCenter, a: baseSize, quat: rootQuat }];
+
+            for (let k = 0; k <= n; k++) {
+                const group = new THREE.Group();
+                group.name = `level_${k}`;
+
+                if (k === 0) {
+                    const geo = buildTetrahedron(rootCenter, baseSize, rootQuat, false);
+                    group.add(new THREE.Mesh(geo, mat));
+                } else {
+                    const nextParents = [];
+                    const childSize = baseSize * Math.pow(1 / 3, k);
+                    parentFaceData.forEach(({ center, a, quat }) => {
+                        const faces = getExposedFaces(center, a, quat, k === 1);
+                        faces.forEach(({ centroid, normal, childQuat }) => {
+                            const childCenter = centroid.clone();
+                            // EXCLUIR BASE para niveles k > 0: evita Z-fighting y transparencia falsa
+                            const geo = buildTetrahedron(childCenter, childSize, childQuat, true);
+                            group.add(new THREE.Mesh(geo, mat));
+                            nextParents.push({ center: childCenter, a: childSize, quat: childQuat });
+                        });
+                    });
+                    parentFaceData = nextParents;
+                }
+                scene.add(group);
+                meshGroups.push(group);
+            }
+        }
+
+        // === RENDERIZADO CON OVERLAY ===
+        dom.btn.onclick = async () => {
+            const n = parseInt(dom.iterInput.value) || 0;
+            const s = parseFloat(dom.size.value) || 100;
+
+            if (n > MAX_ITER) {
+                dom.warning.style.display = 'block';
+                return;
+            }
+            dom.warning.style.display = 'none';
+
+            dom.btn.disabled = true;
+            dom.overlay.style.display = 'flex';
+
+            camera.position.set(s * 2.2, s * 1.8, s * 2.2);
+            controls.target.set(0, 0, 0);
+
+            // Diferir para mostrar el spinner antes de calcular
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            buildFractal(n, s);
+            updateMath();
+
+            dom.overlay.style.display = 'none';
+            dom.btn.disabled = false;
+        };
+
+        dom.exportBtn.onclick = () => {
+            const n = parseInt(dom.iterInput.value) || 0;
+            if (n > 7) {
+                if (!confirm("⚠️ Nivel " + n + " generará un archivo enorme y puede congelar el navegador. ¿Continuar de todas formas?")) return;
+            }
+            
+            // Mostrar overlay modificado
+            const prevText = dom.overlay.querySelector('span').innerText;
+            dom.overlay.style.display = 'flex';
+            dom.overlay.querySelector('span').innerText = 'Generando archivo STL para impresión 3D...';
+            
+            setTimeout(() => {
+                try {
+                    const exporter = new THREE.STLExporter();
+                    const exportScene = new THREE.Scene();
+                    
+                    // Ensamblar todas las mallas generadas en una escena virtual
+                    meshGroups.forEach(g => {
+                        exportScene.add(g.clone());
+                    });
+
+                    const stlString = exporter.parse(exportScene);
+                    
+                    const blob = new Blob([stlString], { type: 'text/plain' });
+                    const link = document.createElement('a');
+                    link.style.display = 'none';
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `koch_tetra_n${n}.stl`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } catch (e) {
+                    alert("Error al exportar: " + e.message);
+                }
+
+                dom.overlay.style.display = 'none';
+                dom.overlay.querySelector('span').innerText = prevText;
+            }, 100);
+        };
+
+        dom.pauseBtn.onclick = () => {
+            controls.autoRotate = !controls.autoRotate;
+            dom.pauseBtn.innerText = controls.autoRotate ? '⏸' : '▶';
+        };
+
+        // Sincronización y Validación de de recursión
+        dom.iterInput.oninput = () => {
+            updateMath();
+        };
+
+        function toggleWarning() {
+            const isVisible = dom.warning.style.display === 'block';
+            dom.warning.style.display = isVisible ? 'none' : 'block';
+        }
+
+        dom.size.oninput = updateMath;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            pointLight.intensity = 0.4 + 0.2 * Math.sin(Date.now() * 0.002);
+            renderer.render(scene, camera);
+        }
+
+        window.onresize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+
+        function toggleSection(id) {
+            document.getElementById(id).classList.toggle('open');
+        }
+
+        updateMath();
+        animate();
+        dom.btn.click();
+    </script>
+</body>
+
+</html>
